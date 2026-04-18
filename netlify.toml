@@ -1,0 +1,37 @@
+# Netlify build configuration for EasyEstatePlan.
+# Full deploy instructions: see ../DEPLOY.md
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  # Pin Node to an LTS version that matches .nvmrc. Netlify's current default
+  # changes over time; pinning removes surprise upgrades.
+  NODE_VERSION = "20.18.0"
+  # Next.js telemetry off — nothing to export, nothing to hide.
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# The official Next.js runtime wraps server routes, API routes, and middleware
+# into Netlify Functions/Edge Functions automatically. It is pinned so a
+# breaking change in the plugin cannot silently take down the site.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Set long-lived cache headers for static assets (the Next build content-hashes
+# them, so this is safe).
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Harden a few defaults. HSTS is intentionally only enabled in production
+# (Netlify sets the x-forwarded-proto header, and Next's own config would be
+# the better place for preload/subdomain — keep this list conservative).
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"

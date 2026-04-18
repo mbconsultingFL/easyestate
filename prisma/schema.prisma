@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  name           String?
+  passwordHash   String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  subscriptionStatus String @default("free") // free | active | canceled
+  stripeCustomerId   String?
+  stripeSubscriptionId String?
+  documents      Document[]
+  flows          FlowSession[]
+}
+
+model Document {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  type        String   // medical_poa | hipaa_auth | advance_directive | financial_poa | beneficiary_checklist | digital_assets | letter_of_instruction
+  status      String   @default("not_started") // not_started | in_progress | complete | needs_update
+  state       String?  // US state code e.g. CA, TX
+  data        String?  // JSON string of completed form data
+  pdfPath     String?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FlowSession {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  documentType String
+  currentStep Int      @default(0)
+  answers     String   @default("{}") // JSON string
+  ageRange    String?  // under_40 | 40_60 | over_60
+  familySituation String? // no_dependents | with_family | single_parent | etc
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
