@@ -18,11 +18,16 @@ import { readFile, writeFile, mkdir, unlink, readdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
 
-// Detect Netlify runtime. Netlify sets NETLIFY=true for build and functions.
-// We avoid reading NODE_ENV here because we want local `next dev` to use the
-// file adapter even when NODE_ENV=production (e.g., a local prod preview).
-const IS_NETLIFY = process.env.NETLIFY === 'true'
-
+// Detect Netlify runtime. `NETLIFY=true` is reliable at BUILD time but not
+// always present inside the function runtime, so we also check for the AWS
+// Lambda sandbox (Netlify Functions run on Lambda — LAMBDA_TASK_ROOT is
+// always set to /var/task) and for the Blobs context injected by the
+// Next.js runtime plugin. Any of these being truthy means "not local dev".
+const IS_NETLIFY =
+    process.env.NETLIFY === 'true' ||
+    !!process.env.LAMBDA_TASK_ROOT ||
+    !!process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    !!process.env.NETLIFY_BLOBS_CONTEXT
 const LOCAL_ROOT = path.join(process.cwd(), '.data')
 const LOCAL_PDF_ROOT = path.join(LOCAL_ROOT, 'pdfs')
 
