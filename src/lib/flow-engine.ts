@@ -11,7 +11,7 @@ export interface FlowQuestion {
   id: string
   text: string
   type: QuestionType
-  options?: { label: string; value: string }[]
+  options?: { label: string; value: string; description?: string }[]
   placeholder?: string
   // Validation for text-input
   validation?: {
@@ -151,7 +151,7 @@ export const medicalPOAFlow: FlowDefinition = {
       text: 'What is your current home address?',
       type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
-      validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
+      validation: { required: true, pattern: /^\s*\d+\S*\s+.+?,.+?,.+?\d{5}(-\d{4})?\s*$/, message: 'Enter a full US address — street, city, state, ZIP (e.g. 123 Main St, Tampa, FL 33602)' },
       next: () => 'agent_name',
     },
 
@@ -187,7 +187,7 @@ export const medicalPOAFlow: FlowDefinition = {
       text: "What is your agent's home address?",
       type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
-      validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
+      validation: { required: true, pattern: /^\s*\d+\S*\s+.+?,.+?,.+?\d{5}(-\d{4})?\s*$/, message: 'Enter a full US address — street, city, state, ZIP (e.g. 123 Main St, Tampa, FL 33602)' },
       next: () => 'agent_phone',
     },
 
@@ -242,19 +242,35 @@ export const medicalPOAFlow: FlowDefinition = {
       text: "What is your alternate agent's home address?",
       type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
-      validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
+      validation: { required: true, pattern: /^\s*\d+\S*\s+.+?,.+?,.+?\d{5}(-\d{4})?\s*$/, message: 'Enter a full US address — street, city, state, ZIP (e.g. 123 Main St, Tampa, FL 33602)' },
       next: () => 'powers_scope',
     },
 
     // QUESTION 13: Scope of powers
+    //
+    // Focus this question purely on WHAT decisions the agent can make.
+    // The separate "effective_when" step below captures WHEN the authority
+    // kicks in (immediately vs only on incapacity) — keeping those axes
+    // separate matches how most state POA statutes draft the grant of
+    // authority. The two options here are the ones that actually change
+    // the document language.
     powers_scope: {
       id: 'powers_scope',
-      text: 'What scope of healthcare decisions should your agent be authorized to make?',
+      text: 'What kind of medical decisions should your agent be able to make for you?',
       type: 'chip-select',
       options: [
-        { label: 'All healthcare decisions', value: 'all' },
-        { label: 'All except end-of-life', value: 'all_except_eol' },
-        { label: 'Only if I am incapacitated', value: 'incapacitated_only' },
+        {
+          label: 'All medical decisions',
+          value: 'all',
+          description:
+            'Agent can consent to or refuse any treatment — including withdrawing life support if you are terminally ill or permanently unconscious.',
+        },
+        {
+          label: 'All except end-of-life',
+          value: 'all_except_eol',
+          description:
+            'Agent handles routine and emergency care, but cannot withdraw life-sustaining treatment. You keep that decision (typically in an Advance Directive).',
+        },
       ],
       next: (_, allAnswers) => {
         // Show mental-health scope if they're 60+ or anyone they'd be making
@@ -281,11 +297,21 @@ export const medicalPOAFlow: FlowDefinition = {
     // QUESTION 15: When does it take effect?
     effective_when: {
       id: 'effective_when',
-      text: 'When should this Healthcare POA take effect?',
+      text: 'When should your agent be allowed to use this authority?',
       type: 'chip-select',
       options: [
-        { label: 'Immediately', value: 'immediately' },
-        { label: 'Only when I cannot decide for myself', value: 'incapacity' },
+        {
+          label: 'Immediately',
+          value: 'immediately',
+          description:
+            'Agent can act on your behalf starting the day you sign — useful if you want help from day one. You keep the right to make your own decisions when able.',
+        },
+        {
+          label: 'Only if I become incapacitated',
+          value: 'incapacity',
+          description:
+            'Also called a "springing" POA. The agent can only act after a doctor confirms you are unable to make decisions for yourself.',
+        },
       ],
       next: () => 'durability',
     },
@@ -362,7 +388,7 @@ export const hipaaAuthFlow: FlowDefinition = {
       text: 'What is your current home address?',
       type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
-      validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
+      validation: { required: true, pattern: /^\s*\d+\S*\s+.+?,.+?,.+?\d{5}(-\d{4})?\s*$/, message: 'Enter a full US address — street, city, state, ZIP (e.g. 123 Main St, Tampa, FL 33602)' },
       next: () => 'recipient_name',
     },
 
@@ -1077,7 +1103,7 @@ export const advanceDirectiveFlow: FlowDefinition = {
       text: 'What is your current home address?',
       type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
-      validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
+      validation: { required: true, pattern: /^\s*\d+\S*\s+.+?,.+?,.+?\d{5}(-\d{4})?\s*$/, message: 'Enter a full US address — street, city, state, ZIP (e.g. 123 Main St, Tampa, FL 33602)' },
       next: () => 'terminal_condition',
     },
 
@@ -1213,7 +1239,7 @@ export const financialPOAFlow: FlowDefinition = {
       text: 'What is your current home address?',
       type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
-      validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
+      validation: { required: true, pattern: /^\s*\d+\S*\s+.+?,.+?,.+?\d{5}(-\d{4})?\s*$/, message: 'Enter a full US address — street, city, state, ZIP (e.g. 123 Main St, Tampa, FL 33602)' },
       next: () => 'agent_name',
     },
 
@@ -1246,7 +1272,7 @@ export const financialPOAFlow: FlowDefinition = {
       text: "What is your agent's home address?",
       type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
-      validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
+      validation: { required: true, pattern: /^\s*\d+\S*\s+.+?,.+?,.+?\d{5}(-\d{4})?\s*$/, message: 'Enter a full US address — street, city, state, ZIP (e.g. 123 Main St, Tampa, FL 33602)' },
       next: () => 'agent_phone',
     },
 
@@ -1284,7 +1310,7 @@ export const financialPOAFlow: FlowDefinition = {
       text: "What is your alternate agent's home address?",
       type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
-      validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
+      validation: { required: true, pattern: /^\s*\d+\S*\s+.+?,.+?,.+?\d{5}(-\d{4})?\s*$/, message: 'Enter a full US address — street, city, state, ZIP (e.g. 123 Main St, Tampa, FL 33602)' },
       next: () => 'powers_scope',
     },
 
