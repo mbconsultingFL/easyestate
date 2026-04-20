@@ -1,4 +1,4 @@
-export type QuestionType = 'chip-select' | 'multi-chip' | 'text-input' | 'multi-entry'
+export type QuestionType = 'chip-select' | 'multi-chip' | 'text-input' | 'address-input' | 'multi-entry'
 
 export interface EntryColumn {
   key: string
@@ -43,6 +43,29 @@ export const SUPPORTED_STATES: Record<string, { name: string; requiresNotarizati
   IL: { name: 'Illinois', requiresNotarization: true, requiresWitnesses: 1, registryAvailable: true },
 }
 
+// ─── Family-situation helpers (Healthcare & Financial POA) ──────────
+//
+// `family_situation` is a multi-chip question whose answer is stored as a
+// comma-separated list of selected values (e.g. "single,has_children"). These
+// helpers let branching logic reason about the combined answer without having
+// to parse it everywhere. Legacy single-value answers (e.g. the old
+// "single_parent" / "no_dependents" options) are still understood so saved
+// flow sessions don't break after the schema change.
+function parseFamilySituation(raw: string | undefined): string[] {
+  if (!raw) return []
+  return raw.split(',').map(v => v.trim()).filter(Boolean)
+}
+
+function hasPartnerOrDependents(raw: string | undefined): boolean {
+  const vals = parseFamilySituation(raw)
+  return vals.some(v =>
+    v === 'married' ||
+    v === 'has_children' ||
+    v === 'has_dependents' ||
+    v === 'single_parent', // legacy
+  )
+}
+
 export const medicalPOAFlow: FlowDefinition = {
   id: 'medical_poa',
   name: 'Healthcare Power of Attorney',
@@ -61,17 +84,20 @@ export const medicalPOAFlow: FlowDefinition = {
     },
 
     // QUESTION 2: Family situation (branching signal)
+    // Multi-select: a user can be single *and* have children, etc. Answer is
+    // stored as a comma-separated list; downstream branching uses the
+    // hasPartnerOrDependents() helper rather than equality checks.
     family_situation: {
       id: 'family_situation',
-      text: 'What best describes your family situation?',
-      type: 'chip-select',
+      text: 'What best describes your family situation? (Select all that apply.)',
+      type: 'multi-chip',
       options: [
-        { label: 'Single, no dependents', value: 'no_dependents' },
+        { label: 'Single', value: 'single' },
         { label: 'Married / partnered', value: 'married' },
         { label: 'Have children', value: 'has_children' },
-        { label: 'Single parent', value: 'single_parent' },
+        { label: 'Have other dependents', value: 'has_dependents' },
       ],
-      next: (answer, allAnswers) => {
+      next: (_answer, allAnswers) => {
         // Over 60 gets urgency message
         if (allAnswers.age_range === 'over_60') return 'urgency_ack'
         return 'state_select'
@@ -123,7 +149,7 @@ export const medicalPOAFlow: FlowDefinition = {
     principal_address: {
       id: 'principal_address',
       text: 'What is your current home address?',
-      type: 'text-input',
+      type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
       validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
       next: () => 'agent_name',
@@ -159,7 +185,7 @@ export const medicalPOAFlow: FlowDefinition = {
     agent_address: {
       id: 'agent_address',
       text: "What is your agent's home address?",
-      type: 'text-input',
+      type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
       validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
       next: () => 'agent_phone',
@@ -173,13 +199,15 @@ export const medicalPOAFlow: FlowDefinition = {
       placeholder: 'Phone number',
       validation: { required: true, pattern: /^\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}$/, message: 'Please enter a valid 10-digit phone number' },
       next: (_, allAnswers) => {
-        // If married/has_children/single_parent, ask about alternate agent
-        const fam = allAnswers.family_situation
-        if (fam === 'married' || fam === 'has_children' || fam === 'single_parent') {
+        // If they indicated a partner or any dependents, prompt for an
+        // alternate agent — losing a sole agent is a real risk for anyone
+        // with people depending on them.
+        if (hasPartnerOrDependents(allAnswers.family_situation)) {
           return 'alternate_agent_yn'
         }
-        // Under 40 no dependents: shortest path
-        if (allAnswers.age_range === 'under_40' && fam === 'no_dependents') {
+        // Purely single with no dependents: under-40s get the shortest path;
+        // older single users still see the alternate-agent prompt.
+        if (allAnswers.age_range === 'under_40') {
           return 'powers_scope'
         }
         return 'alternate_agent_yn'
@@ -212,7 +240,7 @@ export const medicalPOAFlow: FlowDefinition = {
     alternate_address: {
       id: 'alternate_address',
       text: "What is your alternate agent's home address?",
-      type: 'text-input',
+      type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
       validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
       next: () => 'powers_scope',
@@ -229,7 +257,9 @@ export const medicalPOAFlow: FlowDefinition = {
         { label: 'Only if I am incapacitated', value: 'incapacitated_only' },
       ],
       next: (_, allAnswers) => {
-        if (allAnswers.age_range === 'over_60' || allAnswers.family_situation !== 'no_dependents') {
+        // Show mental-health scope if they're 60+ or anyone they'd be making
+        // decisions for is affected (partner, kids, other dependents).
+        if (allAnswers.age_range === 'over_60' || hasPartnerOrDependents(allAnswers.family_situation)) {
           return 'mental_health_yn'
         }
         return 'effective_when'
@@ -330,7 +360,7 @@ export const hipaaAuthFlow: FlowDefinition = {
     patient_address: {
       id: 'patient_address',
       text: 'What is your current home address?',
-      type: 'text-input',
+      type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
       validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
       next: () => 'recipient_name',
@@ -1045,7 +1075,7 @@ export const advanceDirectiveFlow: FlowDefinition = {
     principal_address: {
       id: 'principal_address',
       text: 'What is your current home address?',
-      type: 'text-input',
+      type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
       validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
       next: () => 'terminal_condition',
@@ -1181,7 +1211,7 @@ export const financialPOAFlow: FlowDefinition = {
     principal_address: {
       id: 'principal_address',
       text: 'What is your current home address?',
-      type: 'text-input',
+      type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
       validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
       next: () => 'agent_name',
@@ -1214,7 +1244,7 @@ export const financialPOAFlow: FlowDefinition = {
     agent_address: {
       id: 'agent_address',
       text: "What is your agent's home address?",
-      type: 'text-input',
+      type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
       validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
       next: () => 'agent_phone',
@@ -1252,7 +1282,7 @@ export const financialPOAFlow: FlowDefinition = {
     alternate_address: {
       id: 'alternate_address',
       text: "What is your alternate agent's home address?",
-      type: 'text-input',
+      type: 'address-input',
       placeholder: 'Street, City, State, ZIP',
       validation: { required: true, pattern: /^.{5,}$/, message: 'Please enter a complete address' },
       next: () => 'powers_scope',

@@ -5,7 +5,9 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import ChatMessage from './ChatMessage'
 import AnswerChips from './AnswerChips'
+import MultiChipSelect from './MultiChipSelect'
 import TextInput from './TextInput'
+import AddressInput from './AddressInput'
 import MultiEntryInput from './MultiEntryInput'
 import { getFlowDefinition, getQuestion, getNextQuestion, SUPPORTED_STATES, FLOW_DISPLAY_NAMES } from '@/lib/flow-engine'
 import type { FlowQuestion } from '@/lib/flow-engine'
@@ -24,6 +26,29 @@ function formatMultiEntryDisplay(value: string): string {
   } catch {
     return value
   }
+}
+
+/**
+ * Format a multi-chip answer (comma-separated values) using the labels from
+ * the question options. Falls back to the raw value if a label is missing.
+ */
+function formatMultiChipDisplay(
+  value: string,
+  options?: { label: string; value: string }[],
+): string {
+  const vals = value.split(',').map(v => v.trim()).filter(Boolean)
+  if (vals.length === 0) return value
+  return vals
+    .map(v => options?.find(o => o.value === v)?.label || v)
+    .join(' + ')
+}
+
+/** Format any answer for display in the user's chat bubble. */
+function formatAnswerDisplay(value: string, question: FlowQuestion | null): string {
+  if (!question) return value
+  if (question.type === 'multi-entry') return formatMultiEntryDisplay(value)
+  if (question.type === 'multi-chip') return formatMultiChipDisplay(value, question.options)
+  return question.options?.find(o => o.value === value)?.label || value
 }
 
 interface ChatFlowProps {
@@ -66,12 +91,11 @@ export default function ChatFlow({ flowType = 'medical_poa' }: ChatFlowProps) {
         const replayMessages: Message[] = []
         let questionId = flow.startQuestion
 
-        for (const [key, value] of Object.entries(savedAnswers)) {
+        for (const [, value] of Object.entries(savedAnswers)) {
           const q = getQuestion(flow, questionId)
           if (q) {
             replayMessages.push({ text: q.text, isBot: true })
-            const displayValue = q.type === 'multi-entry' ? formatMultiEntryDisplay(value as string) : (q.options?.find(o => o.value === value)?.label || (value as string))
-            replayMessages.push({ text: displayValue, isBot: false })
+            replayMessages.push({ text: formatAnswerDisplay(value as string, q), isBot: false })
             const nextQ = getNextQuestion(flow, questionId, value as string, savedAnswers)
             questionId = nextQ?.id || questionId
           }
@@ -117,9 +141,7 @@ export default function ChatFlow({ flowType = 'medical_poa' }: ChatFlowProps) {
   const handleAnswer = async (value: string) => {
     if (!currentQuestion) return
 
-    const displayValue = currentQuestion.type === 'multi-entry'
-      ? formatMultiEntryDisplay(value)
-      : (currentQuestion.options?.find(o => o.value === value)?.label || value)
+    const displayValue = formatAnswerDisplay(value, currentQuestion)
     setMessages(prev => [...prev, { text: displayValue, isBot: false }])
 
     const newAnswers = { ...answers, [currentQuestion.id]: value }
@@ -230,8 +252,14 @@ export default function ChatFlow({ flowType = 'medical_poa' }: ChatFlowProps) {
             {currentQuestion.type === 'chip-select' && currentQuestion.options && (
               <AnswerChips options={currentQuestion.options} onSelect={handleAnswer} />
             )}
+            {currentQuestion.type === 'multi-chip' && currentQuestion.options && (
+              <MultiChipSelect options={currentQuestion.options} onSubmit={handleAnswer} />
+            )}
             {currentQuestion.type === 'text-input' && (
               <TextInput placeholder={currentQuestion.placeholder} onSubmit={handleAnswer} validation={currentQuestion.validation} />
+            )}
+            {currentQuestion.type === 'address-input' && (
+              <AddressInput placeholder={currentQuestion.placeholder} onSubmit={handleAnswer} validation={currentQuestion.validation} />
             )}
             {currentQuestion.type === 'multi-entry' && currentQuestion.columns && (
               <MultiEntryInput

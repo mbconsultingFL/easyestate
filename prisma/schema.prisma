@@ -43,7 +43,7 @@ model FlowSession {
   currentStep Int      @default(0)
   answers     String   @default("{}") // JSON string
   ageRange    String?  // under_40 | 40_60 | over_60
-  familySituation String? // no_dependents | with_family | single_parent | etc
+  familySituation String? // Comma-separated multi-chip values: single | married | has_children | has_dependents (legacy: no_dependents | single_parent)
   completed   Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
