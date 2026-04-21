@@ -19,6 +19,8 @@ interface AddressInputProps {
     message?: string
     required?: boolean
   }
+  /** Two-letter state code (e.g. "NY") to bias autocomplete results */
+  stateCode?: string
 }
 
 /**
@@ -34,6 +36,7 @@ export default function AddressInput({
   onSubmit,
   disabled,
   validation,
+  stateCode,
 }: AddressInputProps) {
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -67,8 +70,10 @@ export default function AddressInput({
       const ctl = new AbortController()
       abortRef.current = ctl
       try {
+        const params = new URLSearchParams({ q: query })
+        if (stateCode) params.set('state', stateCode)
         const res = await fetch(
-          `/api/address/suggest?q=${encodeURIComponent(query)}`,
+          `/api/address/suggest?${params.toString()}`,
           { signal: ctl.signal },
         )
         if (!res.ok) return

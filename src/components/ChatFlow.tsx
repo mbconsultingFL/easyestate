@@ -259,7 +259,7 @@ export default function ChatFlow({ flowType = 'medical_poa' }: ChatFlowProps) {
               <TextInput placeholder={currentQuestion.placeholder} onSubmit={handleAnswer} validation={currentQuestion.validation} />
             )}
             {currentQuestion.type === 'address-input' && (
-              <AddressInput placeholder={currentQuestion.placeholder} onSubmit={handleAnswer} validation={currentQuestion.validation} />
+              <AddressInput placeholder={currentQuestion.placeholder} onSubmit={handleAnswer} validation={currentQuestion.validation} stateCode={answers.state_select && answers.state_select !== 'other' ? answers.state_select : undefined} />
             )}
             {currentQuestion.type === 'multi-entry' && currentQuestion.columns && (
               <MultiEntryInput
